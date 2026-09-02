@@ -1,0 +1,122 @@
+// Motor driver pins - L298N
+const int ENA = 10; // Allows for PWM
+const int IN1 = 8;
+const int IN2 = 9;
+
+// Encoder pins
+const int ENCODER_A = 3;
+const int ENCODER_B = 4;
+
+// position counter
+volatile long encoderPos = 0;
+
+// encoder interrupt
+void readEncoder(){
+  if (digitalRead(ENCODER_B)==LOW){
+    encoderPos++;
+  }else{
+    encoderPos--;
+  }
+}
+// PID tuning
+float Kp = 1.2; // proportional gain
+
+float Ki = 0.05; // intergral gain
+
+float Kd = 0.03; // derivitve gain
+
+// controll variables
+long targetPos = 1000;
+
+const int MIN_PWM = 60;
+
+double previousError = 0;
+double cumulativeError = 0;
+unsigned long previousMillis = 0;
+
+// motorr control functions
+
+void stopMotor(){
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA,0);
+}
+void spinForward(int speed){
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA,speed);
+}
+
+void spinBackward(int speed){
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  analogWrite(ENA,speed);
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+
+  pinMode(ENCODER_A, INPUT_PULLUP);
+  pinMode(ENCODER_B, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(ENCODER_A), readEncoder, RISING);
+}
+
+void loop(){
+    unsigned long currentMillis = millis();
+    double dt = (double)(currentMillis-previousMillis)/1000.0;
+    if (dt>0.02){
+    // calculate error
+      long error = targetPos - encoderPos;
+
+  // proportional
+      double pTerm = Kp * error;
+
+      // intergral
+      cumulativeError += (error*dt);
+      cumulativeError = constrain(cumulativeError,-200.0,200.0);
+
+      double iTerm = Ki * cumulativeError;
+
+      // derivitive
+      double dTerm = Kd * ((error - previousError)/dt);
+
+      // calculate pid output
+
+      double output = pTerm + iTerm + dTerm;
+
+      int pwmSpeed = abs((int)output);
+
+      if (pwmSpeed > 0 && pwmSpeed<MIN_PWM){
+        pwmSpeed=MIN_PWM;
+      }
+      if (pwmSpeed > 255){
+        pwmSpeed=255;
+      }
+
+      if (abs(error)<=1){
+        stopMotor();
+      } else if(0<output){ 
+        spinBackward(pwmSpeed);
+      } else if(0>output){
+        spinForward(pwmSpeed);
+      };
+
+      previousError = error;
+      previousMillis = currentMillis;
+
+      Serial.println("target -> "+String(targetPos));
+      Serial.println("pos -> "+String(encoderPos));
+      Serial.println("error -> "+String(error));
+      Serial.println("PWM -> "+String(pwmSpeed));
+      Serial.println("p term -> "+String(pTerm));
+      Serial.println("i term -> "+String(iTerm));
+      Serial.println("d term -> "+String(dTerm));
+  }
+}
+
+
