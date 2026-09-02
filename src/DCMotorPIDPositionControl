@@ -1,3 +1,6 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
 // Motor driver pins - L298N
 const int ENA = 10; // Allows for PWM
 const int IN1 = 8;
@@ -7,8 +10,37 @@ const int IN2 = 9;
 const int ENCODER_A = 3;
 const int ENCODER_B = 4;
 
+
+//LCD
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+unsigned long previousMillisLCD = 0;
+const unsigned long intervalLCD = 100;
+
+//rotary pins
+const int rotaryCLK = 7;
+const int rotaryDT = 6;
+const int rotarySW = 5;
+int previousCLK = digitalRead(rotaryCLK);
+
 // position counter
 volatile long encoderPos = 0;
+
+// PID tuning
+float Kp = 0.3; // proportional gain
+
+float Ki = 0.05; // intergral gain
+
+float Kd = 0.02; // derivitve gain
+
+// controll variables
+long targetPos = 0;
+
+const int MIN_PWM = 60;
+
+double previousError = 0;
+double cumulativeError = 0;
+unsigned long previousMillis = 0;
+
 
 // encoder interrupt
 void readEncoder(){
@@ -18,23 +50,8 @@ void readEncoder(){
     encoderPos--;
   }
 }
-// PID tuning
-float Kp = 1.2; // proportional gain
 
-float Ki = 0.05; // intergral gain
-
-float Kd = 0.03; // derivitve gain
-
-// controll variables
-long targetPos = 1000;
-
-const int MIN_PWM = 60;
-
-double previousError = 0;
-double cumulativeError = 0;
-unsigned long previousMillis = 0;
-
-// motorr control functions
+// motor control functions
 
 void stopMotor(){
   digitalWrite(IN1, LOW);
@@ -56,17 +73,53 @@ void spinBackward(int speed){
 void setup() {
   Serial.begin(9600);
 
+  // motor driver
   pinMode(ENA, OUTPUT);
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
 
+  //encoder
   pinMode(ENCODER_A, INPUT_PULLUP);
   pinMode(ENCODER_B, INPUT_PULLUP);
-
   attachInterrupt(digitalPinToInterrupt(ENCODER_A), readEncoder, RISING);
+
+  //lcd
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+
+  //rotary
+  pinMode(rotaryCLK, INPUT_PULLUP);
+  pinMode(rotaryCLK, INPUT_PULLUP);
+  previousCLK = digitalRead(rotaryCLK);
 }
 
+void  updateLCD(){
+  lcd.clear();
+
+  lcd.setCursor(0,0);
+  lcd.print("Target: ");
+  lcd.println(targetPos);
+
+
+  lcd.setCursor(0,1);
+  lcd.print("Current: ");
+  lcd.println(encoderPos);
+}
+
+void updateRotary(){
+  int currentCLK = digitalRead(rotaryCLK);
+  if (currentCLK != previousCLK && currentCLK == LOW){
+    if (digitalRead(rotaryDT) != currentCLK){
+      targetPos += 25;
+    }else{
+      targetPos -= 25;
+    }
+  }
+  previousCLK = currentCLK;
+}
 void loop(){
+    updateRotary();
     unsigned long currentMillis = millis();
     double dt = (double)(currentMillis-previousMillis)/1000.0;
     if (dt>0.02){
@@ -104,18 +157,22 @@ void loop(){
         spinBackward(pwmSpeed);
       } else if(0>output){
         spinForward(pwmSpeed);
-      };
+      }
 
       previousError = error;
       previousMillis = currentMillis;
 
-      Serial.println("target -> "+String(targetPos));
-      Serial.println("pos -> "+String(encoderPos));
-      Serial.println("error -> "+String(error));
-      Serial.println("PWM -> "+String(pwmSpeed));
-      Serial.println("p term -> "+String(pTerm));
-      Serial.println("i term -> "+String(iTerm));
-      Serial.println("d term -> "+String(dTerm));
+    Serial.print("Target:");Serial.print(targetPos);
+    Serial.print(",");
+    Serial.print("Actaul:");Serial.print(encoderPos);
+    Serial.print(",");
+    Serial.print("PWMspeed:");Serial.println(pwmSpeed);
+
+  }
+  if ((currentMillis - previousMillisLCD) >= intervalLCD){
+    previousMillisLCD = currentMillis;
+
+    updateLCD();
   }
 }
 
