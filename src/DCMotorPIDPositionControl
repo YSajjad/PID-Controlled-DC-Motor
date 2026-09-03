@@ -90,7 +90,7 @@ void setup() {
 
   //rotary
   pinMode(rotaryCLK, INPUT_PULLUP);
-  pinMode(rotaryCLK, INPUT_PULLUP);
+  pinMode(rotaryDT, INPUT_PULLUP);
   previousCLK = digitalRead(rotaryCLK);
 }
 
@@ -99,12 +99,12 @@ void  updateLCD(){
 
   lcd.setCursor(0,0);
   lcd.print("Target: ");
-  lcd.println(targetPos);
+  lcd.print(targetPos);
 
 
   lcd.setCursor(0,1);
   lcd.print("Current: ");
-  lcd.println(encoderPos);
+  lcd.print(encoderPos);
 }
 
 void updateRotary(){
@@ -118,6 +118,7 @@ void updateRotary(){
   }
   previousCLK = currentCLK;
 }
+
 void loop(){
     updateRotary();
     unsigned long currentMillis = millis();
@@ -161,12 +162,6 @@ void loop(){
 
       previousError = error;
       previousMillis = currentMillis;
-
-    Serial.print("Target:");Serial.print(targetPos);
-    Serial.print(",");
-    Serial.print("Actaul:");Serial.print(encoderPos);
-    Serial.print(",");
-    Serial.print("PWMspeed:");Serial.println(pwmSpeed);
 
   }
   if ((currentMillis - previousMillisLCD) >= intervalLCD){
